@@ -180,7 +180,13 @@ def main():
     
     model.wv.save_word2vec_format(OUTPUT)
 
-    print("END!!!!")
+    vec = model.wv.__getitem__([str(i) for i in G.nodes()])
+
+    print(len(vec))
+
+    
+
+
 
     
 
