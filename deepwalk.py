@@ -15,8 +15,6 @@ from scipy.io import loadmat
 from scipy.sparse import issparse
 from io import open
 
-#i wrote something
-#i wrote something
 #インプットするファイル名
 INPUT = "p2p-Gnutella08.edgelist"
 
@@ -77,6 +75,13 @@ class Graph(defaultdict):
 
         return self
 
+    def make_undirected(self):
+
+        for v in list(self):
+            for other in self[v]:
+                 if v != other:
+                    self[other].append(v)
+
     
     """ ランダムウォークの一つのウォーク単体を返す
 
@@ -124,6 +129,21 @@ def load_edgelist(file_, undirected=True):
         
         G.make_consistent()
         return G   
+
+"""
+networkxからグラフクラス生成
+"""
+def from_networkx(G_input, undirected=True):
+    G = Graph()
+
+    for idx, x in enumerate(G_input.nodes()):
+        for y in iterkeys(G_input[x]):
+            G[x].append(y)
+
+    if undirected:
+        G.make_undirected()
+
+    return G
 
 """
 ウォークを実行する
