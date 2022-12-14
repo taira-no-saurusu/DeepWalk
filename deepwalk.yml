@@ -22,7 +22,7 @@ dependencies:
   - freetype=2.12.1
   - giflib=5.2.1
   - ipykernel=6.15.2
-  - ipython=8.6.0
+  - ipython=8.7.0
   - jedi=0.18.1
   - joblib=1.1.1
   - jpeg=9e
@@ -63,7 +63,7 @@ dependencies:
   - pexpect=4.8.0
   - pickleshare=0.7.5
   - pillow=9.2.0
-  - pip=22.2.2
+  - pip=22.3.1
   - prompt-toolkit=3.0.20
   - ptyprocess=0.7.0
   - pure_eval=0.2.2
@@ -85,7 +85,7 @@ dependencies:
   - traitlets=5.1.1
   - wcwidth=0.2.5
   - wheel=0.37.1
-  - xz=5.2.6
+  - xz=5.2.8
   - zeromq=4.3.4
   - zlib=1.2.13
   - zstd=1.5.2
