@@ -15,6 +15,9 @@ from scipy.io import loadmat
 from scipy.sparse import issparse
 from io import open
 
+# 何かを書きました！！！！！！
+#眠たい
+
 #インプットするファイル名
 INPUT = "p2p-Gnutella08.edgelist"
 
