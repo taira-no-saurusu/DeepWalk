@@ -14,6 +14,8 @@ from itertools import product,permutations
 from scipy.io import loadmat
 from scipy.sparse import issparse
 from io import open
+import matplotlib.pyplot as plt
+import networkx as nx
 
 # 何かを書きました！！！！！！
 #眠たい
@@ -147,6 +149,70 @@ def from_networkx(G_input, undirected=True):
         G.make_undirected()
 
     return G
+"""
+networkxのGraphクラスからkarateclubを描画すると共に正解ラベルとしてラベルのリストを返す
+"""
+def draw_karateclub(G):
+    pos = nx.spring_layout(G)
+
+    color_list = [0 if G.nodes[i]["club"] == "Mr. Hi" else 1 for i in G.nodes()]
+    # 色別に描画
+    nx.draw_networkx(G, pos, node_color=color_list, cmap=plt.cm.RdYlBu)
+    plt.show()
+    return color_list
+
+"""
+埋め込まれたデータの可視化
+Gx : networkxのGraphクラス
+"""
+def draw_embedded_vector(Gx ,wv):
+
+    x = list()
+    y = list()
+    node_list = list()
+    colors = list()
+    fig, ax = plt.subplots()
+    for node in Gx.nodes:
+        # int型のままではイテレートできないので、string型に変換する
+        vector = wv[str(node)]
+        x.append(vector[0])
+        y.append(vector[1])
+        # 注釈として、ノードの番号を追記する
+        # 座標(x,y)は(vector[0],vector[1])を指定
+        ax.annotate(str(node), (vector[0], vector[1]))
+        if Gx.nodes[node]["club"] == "Officer":
+            colors.append("b")
+        else:
+            colors.append("r")
+    for i in range(len(x)):
+        ax.scatter(x[i], y[i], c=colors[i])
+    plt.show()
+"""
+クラスタリング結果を可視化
+点の色はクラスタごとで異なる
+"""
+def draw_cluseter(Gx,wv,pred):
+    x = list()
+    y = list()
+    node_list = list()
+    colors = list()
+    fig, ax = plt.subplots()
+    for node in Gx.nodes:
+        # int型のままではイテレートできないので、string型に変換する
+        vector = wv[str(node)]
+        x.append(vector[0])
+        y.append(vector[1])
+        # 注釈として、ノードの番号を追記する
+        # 座標(x,y)は(vector[0],vector[1])を指定
+        ax.annotate(str(node), (vector[0], vector[1]))
+        if pred[node]==1:
+            colors.append("r")
+        else:
+            colors.append("b")
+    for i in range(len(x)):
+        ax.scatter(x[i],y[i],c=colors[i])
+    plt.show
+
 
 """
 ウォークを実行する
