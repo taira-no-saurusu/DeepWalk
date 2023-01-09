@@ -17,9 +17,6 @@ from io import open
 import matplotlib.pyplot as plt
 import networkx as nx
 
-# 何かを書きました！！！！！！
-#眠たい
-
 #インプットするファイル名
 INPUT = "p2p-Gnutella08.edgelist"
 
