@@ -205,10 +205,18 @@ def draw_cluseter(Gx,wv,pred):
         # 注釈として、ノードの番号を追記する
         # 座標(x,y)は(vector[0],vector[1])を指定
         ax.annotate(str(node), (vector[0], vector[1]))
-        if pred[node]==1:
-            colors.append("r")
-        else:
+        if pred[node]==0:
             colors.append("b")
+            
+        elif pred[node] == 1:
+            colors.append("r")
+
+        elif pred[node] == 2:
+            colors.append("y")
+            
+        elif pred[node] == 3:
+            colors.append("g")
+            
     for i in range(len(x)):
         ax.scatter(x[i],y[i],c=colors[i])
     plt.show
@@ -238,6 +246,8 @@ def build_deepwalk_corpus(G, num_paths, path_length, alpha=0,
             walks.append(G.random_walk(path_length, rand=rand, alpha=alpha, start=node))
 
     return walks
+
+
 
 
 #メインクラス
