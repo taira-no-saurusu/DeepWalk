@@ -148,6 +148,8 @@ def generate_Graph(name):
                 G.add_edge(list[1], list[0], weight=int(list[2]))
 
         pass
+    elif name == "karateclub":
+        G = nx.karate_club_graph()
     else:
         sys.exit("グラフ生成の引数の名前がおかしいです")
 
@@ -171,6 +173,9 @@ def get_label_list(name):
 
         for l in datalist:
            label_list.append(int(l.rstrip("\n")))
+
+    elif name == "karateclub":
+        label_list = get_label_karateclub(False)
 
     else:
         sys.exit("グラフ生成の引数の名前がおかしいです")
@@ -227,6 +232,11 @@ def get_label_karateclub(is_draw:bool):
     return color_list
 
 
+"""
+ベクトルデータを描画
+Y : ベクトルデータ
+colorlist : ラベルリスト
+"""
 def draw_embedded_vector(Y,colorlist):
     if colorlist is None:
         colorlist = get_label_karateclub(False)
