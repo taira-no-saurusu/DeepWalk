@@ -16,6 +16,11 @@ from scipy.sparse import issparse
 from io import open
 import matplotlib.pyplot as plt
 import networkx as nx
+from sklearn_extra.cluster import KMedoids
+from sklearn.cluster import KMeans
+from sklearn.metrics.cluster import adjusted_rand_score
+import numpy as np
+from statistics import stdev  # 標準偏差
 
 #インプットするファイル名
 INPUT = "p2p-Gnutella08.edgelist"
@@ -112,6 +117,67 @@ class Graph(defaultdict):
                 break
         return [str(node) for node in path]
 
+"""
+networkxのグラフインスタンスを生成
+"""
+def generate_Graph(name):
+    G = nx.Graph()
+
+    if name=="football":
+        f = open('football.txt','r')
+        datalist = f.readlines()
+
+        for l in datalist:
+            list = l.strip('\n').split(",")
+            if list[2]=='0':
+                continue
+            else:
+                G.add_edge(list[0], list[1], weight=int(list[2]))
+                G.add_edge(list[1], list[0], weight=int(list[2]))
+
+    elif name == "polbooks":
+        f = open('polbooks.txt', 'r')
+        datalist = f.readlines()
+
+        for l in datalist:
+            list = l.strip('\n').split(",")
+            if list[2] == '0':
+                continue
+            else:
+                G.add_edge(list[0], list[1], weight=int(list[2]))
+                G.add_edge(list[1], list[0], weight=int(list[2]))
+
+        pass
+    else:
+        sys.exit("グラフ生成の引数の名前がおかしいです")
+
+    return G
+
+"""
+label_listをテキストファイルから読み込んで返す
+"""
+def get_label_list(name):
+    label_list= []
+    if name == "football":
+        f = open('label_football.txt', 'r')
+        datalist = f.readlines()
+
+        for l in datalist:
+           label_list.append(int(l.rstrip("\n")))
+
+    elif name == "polbooks":
+        f = open('label_polbooks.txt', 'r')
+        datalist = f.readlines()
+
+        for l in datalist:
+           label_list.append(int(l.rstrip("\n")))
+
+    else:
+        sys.exit("グラフ生成の引数の名前がおかしいです")
+
+    return label_list
+
+
 
 """エッジリストからグラフインスタンス生成
 
@@ -149,100 +215,263 @@ def from_networkx(G_input, undirected=True):
 """
 networkxのGraphクラスからkarateclubを描画すると共に正解ラベルとしてラベルのリストを返す
 """
-def draw_karateclub(G):
+def get_label_karateclub(is_draw:bool):
+    G = nx.karate_club_graph()
     pos = nx.spring_layout(G)
 
     color_list = [0 if G.nodes[i]["club"] == "Mr. Hi" else 1 for i in G.nodes()]
-    # 色別に描画
-    nx.draw_networkx(G, pos, node_color=color_list, cmap=plt.cm.RdYlBu)
+    if is_draw:
+        # 色別に描画
+        nx.draw_networkx(G, pos, node_color=color_list, cmap=plt.cm.RdYlBu)
     plt.show()
     return color_list
 
-"""
-埋め込まれたデータの可視化
-Gx : networkxのGraphクラス
-"""
-def draw_embedded_vector(Gx ,wv):
 
-    x = list()
-    y = list()
-    node_list = list()
-    colors = list()
+def draw_embedded_vector(Y,colorlist):
+    if colorlist is None:
+        colorlist = get_label_karateclub(False)
+
     fig, ax = plt.subplots()
-    for node in Gx.nodes:
-        # int型のままではイテレートできないので、string型に変換する
-        vector = wv[str(node)]
-        x.append(vector[0])
-        y.append(vector[1])
-        # 注釈として、ノードの番号を追記する
-        # 座標(x,y)は(vector[0],vector[1])を指定
-        ax.annotate(str(node), (vector[0], vector[1]))
-        if Gx.nodes[node]["club"] == "Officer":
-            colors.append("b")
-        else:
-            colors.append("r")
-    for i in range(len(x)):
-        ax.scatter(x[i], y[i], c=colors[i])
+    for i in range(len(colorlist)):
+        ax.annotate(str(i), (Y[i, 0], Y[i, 1]))
+        if colorlist[i] == 0:
+            ax.scatter(Y[i, 0], Y[i, 1], c="r")
+            pass
+        elif colorlist[i] == 1:
+            ax.scatter(Y[i, 0], Y[i, 1], c="b")
+            pass
+        elif colorlist[i] == 2:
+            ax.scatter(Y[i, 0], Y[i, 1], c="y")
+
+        elif colorlist[i] == 3:
+            ax.scatter(Y[i, 0], Y[i, 1], c="g")
+
+        elif colorlist[i] == 4:
+            ax.scatter(Y[i, 0], Y[i, 1], c="c")
+
+        elif colorlist[i] == 5:
+            ax.scatter(Y[i, 0], Y[i, 1], c="m")
+
+        elif colorlist[i] ==6:
+            ax.scatter(Y[i, 0], Y[i, 1], c="coral")
+
+        elif colorlist[i] == 7:
+            ax.scatter(Y[i, 0], Y[i, 1], c="lightpink")
+
+        elif colorlist[i] == 8:
+            ax.scatter(Y[i, 0], Y[i, 1], c="skyblue")
+
+        elif colorlist[i] == 9:
+            ax.scatter(Y[i, 0], Y[i, 1], c="darkgray")
+
+        elif colorlist[i] == 10:
+            ax.scatter(Y[i, 0], Y[i, 1], c="goldenrod")
+
+        elif colorlist[i] == 11:
+            ax.scatter(Y[i, 0], Y[i, 1], c="lightgreen")
+
     plt.show()
-"""
-クラスタリング結果を可視化
-点の色はクラスタごとで異なる
-"""
-def draw_cluseter(Gx,wv,pred):
-    x = list()
-    y = list()
-    node_list = list()
-    colors = list()
-    fig, ax = plt.subplots()
-    for node in Gx.nodes:
-        # int型のままではイテレートできないので、string型に変換する
-        vector = wv[str(node)]
-        x.append(vector[0])
-        y.append(vector[1])
-        # 注釈として、ノードの番号を追記する
-        # 座標(x,y)は(vector[0],vector[1])を指定
-        ax.annotate(str(node), (vector[0], vector[1]))
-        if pred[node]==0:
-            colors.append("b")
-            
-        elif pred[node] == 1:
-            colors.append("r")
-
-        elif pred[node] == 2:
-            colors.append("y")
-            
-        elif pred[node] == 3:
-            colors.append("g")
-            
-    for i in range(len(x)):
-        ax.scatter(x[i],y[i],c=colors[i])
-    plt.show
 
 
 """
 ウォークを実行する
 G : Graphインスタンス
-num_paths   : １ノードあたり実行するウォーク数
-path_length : １ウォークあたりのウォークの長さ
+NUMBER_WALKS   : １ノードあたり実行するウォークの回数
+WALK_LENGTH : １ウォークあたりのウォークの長さ
 alpha       : 
 start       : ウォークを開始するノードの設定?
 
 """
-def build_deepwalk_corpus(G, num_paths, path_length, alpha=0,
-                          rand=random.Random(0)):
+def build_deepwalk_corpus(G, NUMBER_WALKS, WALK_LENGTH, alpha=0,
+                          rand=random.Random()):
   
     walks = []
 
     #グラフの全ノードインデックスをリストにして取得
     nodes = list(G.nodes())
 
-    for cnt in range(num_paths):
+    for cnt in range(NUMBER_WALKS):
         #ノードリストをシャッフル、これをした方が結果がよくなるらしい
         rand.shuffle(nodes)
         for node in nodes:
-            walks.append(G.random_walk(path_length, rand=rand, alpha=alpha, start=node))
+            walks.append(G.random_walk(
+                WALK_LENGTH, rand=rand, alpha=alpha, start=node))
 
     return walks
+
+
+"""
+取得したコーパスから元のネットワークのエッジの重みの総和を求める
+"""
+def get_corpas_weight(INPUT, walks):
+    w_list = dict(INPUT.edges)
+    val = 0
+    for walk in walks:
+        for i in range(len(walk)-1):
+            big = None
+            small = None
+            if int(walk[i]) >= int(walk[i+1]):
+                big = int(walk[i])
+                small = int(walk[i+1])
+            else:
+                big = int(walk[i+1])
+                small = int(walk[i])
+
+            val += int(w_list[small, big]["weight"])
+
+    return val
+
+"""
+埋め込みを実施
+"""
+def embed(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS):
+    G = from_networkx(INPUT, UNDIRECTED)
+    # ウォーク取得(長さは全部等しい)
+    walks = build_deepwalk_corpus(G, NUMBER_WALKS=NUMBER_WALKS, WALK_LENGTH=WALK_LENGTH, alpha=0, rand=random.Random())
+
+    model = Word2Vec(walks, size=REPRESENTATION_SIZE,window=WINDOW_SIZE, min_count=0, sg=1, hs=1, workers=WORKERS)
+    vec = model.wv.__getitem__([str(i) for i in range(len(G))])
+    return vec,walks
+
+"""
+クラスタリングを実施
+"""
+def clustering(vec,N_CLUSTERS,METHOD):
+
+    pred = None
+
+    if METHOD == "kmedoids":
+        pred = KMedoids(n_clusters=N_CLUSTERS).fit_predict(vec)
+
+    elif METHOD == "kmeans":
+        pred = KMeans(n_clusters = N_CLUSTERS).fit_predict(vec)
+
+    else:
+        sys.exit(f"クラスタリング手法が無効です：{METHOD}")
+    
+    return pred
+
+
+"""
+リストの中に含まれる tar の添字をリストで返
+READ=TRUEの場合 +１して標準出力に対応
+"""
+def get_index(mask, tar, READ=False):
+    if READ:
+        return [i+1 for i, x in enumerate(mask) if x == tar]
+    else:
+        return [i for i, x in enumerate(mask) if x == tar]
+
+
+"""
+埋め込みからクラスタリングを実施
+    INPUT               : networkXのGraphインスタンス
+    IS_DIRECTED         : 無向グラフ
+    NUMBER_WALKS        : 1ノードあたりに実行するウォークの回数
+    WALK_LENGTH         : 1ウォークあたりの長さ
+    REPRESENTATION_SIZE : 埋め込み後の次元数
+    WORKERS             : 並列プロセス数
+    N_CLUSTERS          : クラスタリングのクラスタ数
+
+"""
+def exection(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER,METHOD,TRUE_LABEL,SHOW=True):
+
+    #埋め込みを実施
+    vec ,walks= embed(INPUT,UNDIRECTED, NUMBER_WALKS, WALK_LENGTH,REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS)
+
+    # クラスタリングを実施
+    pred = clustering(vec, N_CLUSTER, METHOD)
+
+    if SHOW:
+        #埋め込み結果を可視化
+        print("＝＝＝＝＝＝＝＝埋め込み結果（正解ラベルに基づいて色付け）＝＝＝＝＝＝＝＝＝")
+        draw_embedded_vector(vec,TRUE_LABEL)
+        #クラスタリング結果に基づいて可視化
+        print("＝＝＝＝＝＝＝＝＝＝＝＝＝＝クラスタリング結果＝＝＝＝＝＝＝＝＝＝＝＝＝＝")
+        draw_embedded_vector(vec,pred)
+
+    #ARI算出
+    ari = adjusted_rand_score(TRUE_LABEL, pred)
+
+    return vec,pred,ari,walks
+
+"""
+埋め込みからクラスタリング、ARI算出まで複数回実行
+    INPUT               : networkXのGraphインスタンス
+    IS_DIRECTED         : 無向グラフ
+    NUMBER_WALKS        : 1ノードあたりに実行するウォークの回数
+    WALK_LENGTH         : 1ウォークあたりの長さ
+    REPRESENTATION_SIZE : 埋め込み後の次元数
+    WINDOW_SIZE         : skipgram学習時のウィンドウサイズ
+    WORKERS             : 並列プロセス数
+    N_CLUSTERS          : クラスタリングのクラスタ数
+    METHOD              : クラスタリング手法（k-means,k-medoids）
+    TRUE_LABEL          : 正解ラベル
+    SHOW                : 埋め込み図を表示するかどうか
+"""
+def multi_exection(TIME, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,SHOW=True):
+
+    ARI_list = []
+    max_vec = None
+    min_vec = None
+    max_pred = None
+    min_pred = None
+    max_ari = -100
+    min_ari = 100
+    max_walks = None
+    min_walks = None
+    for i in range(TIME):
+        if SHOW:
+            print(f"------------------------{i+1}回目実行-----------------------------")
+
+        vec, pred, ari, walks = exection(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH,REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,SHOW)
+        
+        if SHOW:
+            print(f"ari : {ari}")
+
+        ARI_list.append(ari)
+
+        if ari > max_ari:
+            max_ari = ari
+            max_vec = vec
+            max_pred = pred
+            max_walks = walks
+
+        if min_ari > ari:
+            min_ari = ari
+            min_vec = vec
+            min_pred = pred
+            min_walks = walks
+    
+    print(f"最大ARI({get_index(ARI_list,max_ari,READ = True)}回目実行) : {max_ari}")
+    print(f"最小ARI({get_index(ARI_list,min_ari,READ = True)}回目実行) : {min_ari}")
+    print(f"平均ARI : {np.mean(ARI_list)}")
+    print(f"標準偏差　：{stdev(ARI_list)}")
+
+    return ARI_list, max_walks, min_walks, max_vec, min_vec, max_pred, min_pred
+
+
+def get_network_weight(TIME1, TIME2, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,):
+    ARI_list_all = []
+    max_weight_list = []
+    min_weight_list = []
+    max_ari = []
+    min_ari = []
+    for i in range(TIME2):
+        ARI_list, max_walks, min_walks, _, _, _, _ = multi_exection(TIME1, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL, SHOW=False)
+        ARI_list_all += ARI_list
+        max_ari.append(max(ARI_list))
+        min_ari.append(min(ARI_list))
+        max_weight_list.append(get_corpas_weight(INPUT,max_walks))
+        min_weight_list.append(get_corpas_weight(INPUT,min_walks))
+    
+    print(f"総実行回数：{TIME1*TIME2}")
+    print(f"ARI平均 : {np.mean(ARI_list_all)}")
+    print(f"最大ARI平均 : {np.mean(max_ari)}")
+    print(f"最小ARI平均 : {np.mean(min_ari)}")
+    print(f"ARIが良かった時の重み平均 : {np.mean(max_weight_list)}")
+    print(f"ARIが悪かった時の重み平均 : {np.mean(min_weight_list)}")
+    return ARI_list_all, max_weight_list, min_weight_list
 
 
 
