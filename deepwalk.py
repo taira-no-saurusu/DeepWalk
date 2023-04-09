@@ -204,7 +204,7 @@ def load_edgelist(file_, undirected=True):
         return G   
 
 """
-networkxからグラフクラス生成
+networkxからグラフインスタンス生成
 """
 def from_networkx(G_input, undirected=True):
     G = Graph()
@@ -407,6 +407,7 @@ def exection(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, 
 
 """
 埋め込みからクラスタリング、ARI算出まで複数回実行
+埋め込みからクラスタリングは、このメソッドからexectionメソッドを呼び出して実行
     INPUT               : networkXのGraphインスタンス
     IS_DIRECTED         : 無向グラフ
     NUMBER_WALKS        : 1ノードあたりに実行するウォークの回数
@@ -434,7 +435,7 @@ def multi_exection(TIME, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENT
         if SHOW:
             print(f"------------------------{i+1}回目実行-----------------------------")
 
-        vec, pred, ari, walks = exection(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH,REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,SHOW)
+        vec, pred, ari, walks = exec_100(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH,REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,SHOW)
         
         if SHOW:
             print(f"ari : {ari}")
@@ -456,9 +457,42 @@ def multi_exection(TIME, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENT
     print(f"最大ARI({get_index(ARI_list,max_ari,READ = True)}回目実行) : {max_ari}")
     print(f"最小ARI({get_index(ARI_list,min_ari,READ = True)}回目実行) : {min_ari}")
     print(f"平均ARI : {np.mean(ARI_list)}")
-    print(f"標準偏差　：{stdev(ARI_list)}")
+    print(f"標準偏差：{stdev(ARI_list)}")
 
     return ARI_list, max_walks, min_walks, max_vec, min_vec, max_pred, min_pred
+
+
+"""
+    一つの埋め込みからクラスタリングを100回実施し最も高いariの値を返す
+    INPUT               : networkXのGraphインスタンス
+    IS_DIRECTED         : 無向グラフ
+    NUMBER_WALKS        : 1ノードあたりに実行するウォークの回数
+    WALK_LENGTH         : 1ウォークあたりの長さ
+    REPRESENTATION_SIZE : 埋め込み後の次元数
+    WORKERS             : 並列プロセス数
+    N_CLUSTERS          : クラスタリングのクラスタ数
+
+"""
+def exec_100(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL, SHOW=True):
+
+    #ariを格納 最終的に一番高いariを返す
+    ari_array = []
+
+    # 埋め込みを実施
+    vec, walks = embed(INPUT, UNDIRECTED, NUMBER_WALKS,
+                       WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS)
+    
+    for i in range(100):
+        # クラスタリングを実施
+        pred = clustering(vec, N_CLUSTER, METHOD)
+        # ARI算出
+        ari = adjusted_rand_score(TRUE_LABEL, pred)
+        ari_array.append(ari)
+    
+
+
+    return vec, pred, max(ari_array), walks
+
 
 
 def get_network_weight(TIME1, TIME2, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,):
