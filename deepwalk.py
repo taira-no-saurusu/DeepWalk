@@ -22,30 +22,7 @@ from sklearn.metrics.cluster import adjusted_rand_score
 import numpy as np
 from statistics import stdev  # 標準偏差
 
-#インプットするファイル名
-INPUT = "p2p-Gnutella08.edgelist"
 
-#アウトプットするファイル名
-OUTPUT = "p2p-Gnutella08.txt"
-#１ノードあたりに実行するウォーク数
-NUMBER_WALKS = 5
-
-#1ウォークあたりの長さ
-WALK_LENGTH = 20
-
-#ランダムシード値
-SEED = 0
-
-#埋め込み後の各ノードの次元数
-REPRESENTATION_SIZE = 2
-
-#skipgramので使われるウィンドウサイズ
-WINDOW_SIZE = 5
-
-#並列プロセス数
-WORKERS = 1
-
-#グラフクラス、辞書型を継承
 class Graph(defaultdict):
     def __init__(self):
         super(Graph,self).__init__(list)
@@ -96,7 +73,8 @@ class Graph(defaultdict):
         alpha        : リスタートする確率
         start        : ランダムウォークを始めるノード
     """
-    def random_walk(self, path_length, alpha=0, rand=random.Random(), start=None):
+    def random_walk(self,INPUT, path_length, rand=random.Random(), start=None):
+        nx = generate_Graph("karateclub")
 
         G = self
         if start:
@@ -109,13 +87,51 @@ class Graph(defaultdict):
         while len(path) < path_length:
             cur = path[-1]
             if len(G[cur]) > 0:
-                if rand.random() >= alpha:
-                    path.append(rand.choice(G[cur]))
-                else:
-                    path.append(path[0])
+                # 隣接するノードリスト取得
+                adj_list = G[cur]
+
+                #連接するノードリストからそれぞれの重みを取得
+                weight_list = G.get_adj_weight(cur, adj_list,INPUT=INPUT)
+
+                #重みを割合に変更
+                pro_list = get_pro(weight_list)
+
+                #重みをもとに確立的に次のノードを選択するようにする。
+                path.append(adj_list[np.random.choice(len(pro_list),p=pro_list)])
+               
             else:
                 break
+
         return [str(node) for node in path]
+    
+    #現在のノードと隣接するノード間の重みの情報をリストとして返す。
+    def get_adj_weight(self, cur, adj_list, INPUT):
+        di = dict(INPUT.edges)
+        wgt = []
+        cur = int(cur)
+        for n in adj_list:
+            n = int(n)
+            small = 0
+            big = 0
+            if cur>n:
+                small = n
+                big = cur
+            else:
+                small = cur
+                big = n
+            weight = int(di[small, big]["weight"])
+            wgt.append(weight)
+
+        return wgt
+    
+#重みのリストを割合に変更
+def get_pro(weight_list):
+    su = sum(weight_list)
+    pro = [i/su for i in weight_list]
+    su = sum(pro)
+    if sum != 1.0:
+       pro[0]+= 1.0 - su
+    return pro
 
 """
 networkxのグラフインスタンスを生成
@@ -292,7 +308,7 @@ alpha       :
 start       : ウォークを開始するノードの設定?
 
 """
-def build_deepwalk_corpus(G, NUMBER_WALKS, WALK_LENGTH, alpha=0,
+def build_deepwalk_corpus(INPUT,G, NUMBER_WALKS, WALK_LENGTH,
                           rand=random.Random()):
   
     walks = []
@@ -305,7 +321,7 @@ def build_deepwalk_corpus(G, NUMBER_WALKS, WALK_LENGTH, alpha=0,
         rand.shuffle(nodes)
         for node in nodes:
             walks.append(G.random_walk(
-                WALK_LENGTH, rand=rand, alpha=alpha, start=node))
+                INPUT,WALK_LENGTH, rand=rand, start=node))
 
     return walks
 
@@ -337,7 +353,7 @@ def get_corpas_weight(INPUT, walks):
 def embed(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS):
     G = from_networkx(INPUT, UNDIRECTED)
     # ウォーク取得(長さは全部等しい)
-    walks = build_deepwalk_corpus(G, NUMBER_WALKS=NUMBER_WALKS, WALK_LENGTH=WALK_LENGTH, alpha=0, rand=random.Random())
+    walks = build_deepwalk_corpus(INPUT,G, NUMBER_WALKS=NUMBER_WALKS, WALK_LENGTH=WALK_LENGTH, rand=random.Random())
 
     model = Word2Vec(walks, size=REPRESENTATION_SIZE,window=WINDOW_SIZE, min_count=0, sg=1, hs=1, workers=WORKERS)
     vec = model.wv.__getitem__([str(i) for i in range(len(G))])
