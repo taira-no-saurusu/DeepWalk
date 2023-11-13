@@ -21,6 +21,8 @@ from sklearn.cluster import KMeans
 from sklearn.metrics.cluster import adjusted_rand_score
 import numpy as np
 from statistics import stdev  # 標準偏差
+from sklearn.decomposition import PCA
+
 
 
 class Graph(defaultdict):
@@ -436,7 +438,7 @@ def exection(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, 
     TRUE_LABEL          : 正解ラベル
     SHOW                : 埋め込み図を表示するかどうか
 """
-def multi_exection(TIME, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,SHOW=True):
+def multi_exection(TIME, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,SHOW):
 
     ARI_list = []
     max_vec = None
@@ -470,6 +472,15 @@ def multi_exection(TIME, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENT
             min_pred = pred
             min_walks = walks
     
+    if SHOW:
+        # 埋め込み結果を可視化
+        print("＝＝＝＝＝＝＝＝最大ARI埋め込み結果（正解ラベルに基づいて色付け）＝＝＝＝＝＝＝＝＝")
+        draw_embedded_vector(max_vec, TRUE_LABEL)
+        # クラスタリング結果に基づいて可視化
+        print("＝＝＝＝＝＝＝＝＝＝＝＝＝＝最大ARIクラスタリング結果＝＝＝＝＝＝＝＝＝＝＝＝＝＝")
+        draw_embedded_vector(max_vec, max_pred)
+
+    
     print(f"最大ARI({get_index(ARI_list,max_ari,READ = True)}回目実行) : {max_ari}")
     print(f"最小ARI({get_index(ARI_list,min_ari,READ = True)}回目実行) : {min_ari}")
     print(f"平均ARI : {np.mean(ARI_list)}")
@@ -489,10 +500,11 @@ def multi_exection(TIME, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENT
     N_CLUSTERS          : クラスタリングのクラスタ数
 
 """
-def exec_100(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL, SHOW=True):
+def exec_100(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL, SHOW):
 
     #ariを格納 最終的に一番高いariを返す
-    ari_array = []
+    max_ari  = -100
+    max_pred = []
 
     # 埋め込みを実施
     vec, walks = embed(INPUT, UNDIRECTED, NUMBER_WALKS,
@@ -503,15 +515,27 @@ def exec_100(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, 
         pred = clustering(vec, N_CLUSTER, METHOD)
         # ARI算出
         ari = adjusted_rand_score(TRUE_LABEL, pred)
-        ari_array.append(ari)
+
+        if(max_ari<ari):
+            max_ari = ari
+            max_pred = pred
+
+    
+    if SHOW:
+        # 埋め込み結果を可視化
+        print("＝＝＝＝＝＝＝＝埋め込み結果（正解ラベルに基づいて色付け）＝＝＝＝＝＝＝＝＝")
+        draw_embedded_vector(vec, TRUE_LABEL)
+        # クラスタリング結果に基づいて可視化
+        print("＝＝＝＝＝＝＝＝＝＝＝＝＝＝クラスタリング結果＝＝＝＝＝＝＝＝＝＝＝＝＝＝")
+        draw_embedded_vector(vec, max_pred)
     
 
 
-    return vec, pred, max(ari_array), walks
+    return vec, max_pred, max_ari, walks
 
 
 
-def get_network_weight(TIME1, TIME2, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,):
+def get_network_weight(TIME1, TIME2, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,SHOW):
     ARI_list_all = []
     max_weight_list = []
     min_weight_list = []
@@ -533,46 +557,52 @@ def get_network_weight(TIME1, TIME2, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGT
     print(f"ARIが悪かった時の重み平均 : {np.mean(min_weight_list)}")
     return ARI_list_all, max_weight_list, min_weight_list
 
+#埋め込みを100回実行して、pcaを実行し寄与率の平均を返す
+def get_contribution(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS):
+    raitoList = []
+    max_vec = None
+    max_ari = -100
+    for i in range(100):
+        vec, _ = embed(INPUT, UNDIRECTED, NUMBER_WALKS,
+                           WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS)
+        #主成分分析
+        pca = PCA()
+        pca.fit(vec)
+        raitoList.append(pca.explained_variance_ratio_)
+
+    #平均寄与率を求める    
+    mean_contribution = calculate_mean_contributions(raitoList)
+    #四捨五入
+    rounded_mean_contribution = convert_to_float_array(mean_contribution)
+
+
+    #ARIが一番高い時の埋め込みベクトルの寄与率を返す
+    return mean_contribution, rounded_mean_contribution
+
+
+"""
+指数表現の数値が格納されたリストを少数第5位で四捨五入したfloatのリストに変換する
+"""
+def convert_to_float_array(array):
+    float_array = []
+    for i in range(len(array)):
+        float_array.append(round(array[i], 5))
+    return float_array
+
+
+"""
+寄与率の平均を計算する
+"""
+def calculate_mean_contributions(data_contributions):
+    data_contributions = np.array(data_contributions)
+    mean_contributions = np.mean(data_contributions, axis=0)
+    return mean_contributions.tolist()
 
 
 
 #メインクラス
 def main():
-    """
-    グラフ生成
-    G = load_edgelist(ファイル名:String, 無効グラフかどうか:boolean)
-    """
-    G = load_edgelist(INPUT,True)
-    # ノード数出力
-    print("Number of nodes: {}".format(len(G.nodes())))
-
-    #ウォーク数算出(ノード数*1ノードあたりのウォーク数)と出力
-    num_walks = len(G.nodes()) * NUMBER_WALKS
-    print("Number of walks: {}".format(num_walks))
-
-    #データサイズ(ウォーク数*ウォークの長さ)の算出と出力
-    data_size = num_walks * WALK_LENGTH
-    print("Data size (walks*length): {}".format(data_size))
-
-    print("Walking Now!!!!!!")
-
-    #ウォーク取得(長さは全部等しい)
-    walks = build_deepwalk_corpus(G, num_paths=NUMBER_WALKS,
-                                        path_length=WALK_LENGTH, alpha=0, rand=random.Random(SEED))
-
-    print("Embedding Now!!!!!")
-    model = Word2Vec(walks, size = REPRESENTATION_SIZE,window = WINDOW_SIZE, min_count = 0, sg = 1, hs = 1,workers = WORKERS)
-    
-    model.wv.save_word2vec_format(OUTPUT)
-
-    vec = model.wv.__getitem__([str(i) for i in G.nodes()])
-
-    print(len(vec))
-
-    
-
-
-
+    pass
     
 
 #mainクラスの実行
