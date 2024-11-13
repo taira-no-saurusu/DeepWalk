@@ -19,10 +19,10 @@ import networkx as nx
 from sklearn_extra.cluster import KMedoids
 from sklearn.cluster import KMeans
 from sklearn.metrics.cluster import adjusted_rand_score
+from sklearn.cluster import AgglomerativeClustering  
 import numpy as np
 from statistics import stdev  # 標準偏差
 from sklearn.decomposition import PCA
-
 
 
 class Graph(defaultdict):
@@ -75,8 +75,7 @@ class Graph(defaultdict):
         alpha        : リスタートする確率
         start        : ランダムウォークを始めるノード
     """
-    def random_walk(self,INPUT, path_length, rand=random.Random(), start=None):
-        nx = generate_Graph("karateclub")
+    def random_walk(self, path_length, rand=random.Random(), start=None):
 
         G = self
         if start:
@@ -93,13 +92,16 @@ class Graph(defaultdict):
                 adj_list = G[cur]
 
                 #連接するノードリストからそれぞれの重みを取得
-                weight_list = G.get_adj_weight(cur, adj_list,INPUT=INPUT)
+                #weight_list = G.get_adj_weight(cur, adj_list,INPUT=INPUT)
 
                 #重みを割合に変更
-                pro_list = get_pro(weight_list)
+                #pro_list = get_pro(weight_list)
 
                 #重みをもとに確立的に次のノードを選択するようにする。
-                path.append(adj_list[np.random.choice(len(pro_list),p=pro_list)])
+                #path.append(adj_list[np.random.choice(len(pro_list),p=pro_list)])
+
+                #ランダムに次のノードを選択
+                path.append(rand.choice(adj_list))
                
             else:
                 break
@@ -140,6 +142,7 @@ networkxのグラフインスタンスを生成
 """
 def generate_Graph(name):
     G = nx.Graph()
+    label_list = get_label_list(name)
 
     if name=="football":
         f = open('football.txt','r')
@@ -152,6 +155,9 @@ def generate_Graph(name):
             else:
                 G.add_edge(list[0], list[1], weight=int(list[2]))
                 G.add_edge(list[1], list[0], weight=int(list[2]))
+        
+        nx.draw_networkx(G,with_labels=True,node_color=label_list, cmap=plt.cm.RdYlBu)
+
 
     elif name == "polbooks":
         f = open('polbooks.txt', 'r')
@@ -165,13 +171,47 @@ def generate_Graph(name):
                 G.add_edge(list[0], list[1], weight=int(list[2]))
                 G.add_edge(list[1], list[0], weight=int(list[2]))
 
-        pass
+        
+        nx.draw_networkx(G,with_labels=True,node_color=label_list, cmap=plt.cm.RdYlBu)
+
+
+        
+    elif name == "data1":
+        f = open('data1.txt', 'r')
+        datalist = f.readlines()
+
+        for l in datalist:
+            list = l.strip('\n').split(",")
+            if list[2] == '0':
+                continue
+            else:
+                G.add_edge(list[0], list[1], weight=int(list[2]))
+                G.add_edge(list[1], list[0], weight=int(list[2]))
+        nx.draw_networkx(G,with_labels=True,node_color=label_list, cmap=plt.cm.RdYlBu)
+
+
+
     elif name == "karateclub":
         G = nx.karate_club_graph()
+        nx.draw_networkx(G,with_labels=True,node_color=label_list, cmap=plt.cm.RdYlBu)
+
+    
+    elif name == "lesmis":
+        G = nx.read_gml("data/lesmis.gml")
+        plt.figure(figsize=(36, 30))
+        pos = nx.spring_layout(G)
+        nx.draw_networkx(G,pos, font_size = 20, node_size = 100,with_labels = True,width = 0.5)
+        edge_labels = nx.get_edge_attributes(G, 'value')
+        #nx.draw_networkx_edge_labels(G, pos, edge_labels = edge_labels,font_size = 10)
+        plt.savefig("lesmis.png")
+        plt.show()
+        
+
     else:
         sys.exit("グラフ生成の引数の名前がおかしいです")
-
-    return G
+    
+    
+    return G, label_list
 
 """
 label_listをテキストファイルから読み込んで返す
@@ -192,8 +232,19 @@ def get_label_list(name):
         for l in datalist:
            label_list.append(int(l.rstrip("\n")))
 
+    elif name == "data1":
+        f = open('label_data1.txt', 'r')
+        datalist = f.readlines()
+
+        for l in datalist:
+           label_list.append(int(l.rstrip("\n")))
+
     elif name == "karateclub":
         label_list = get_label_karateclub(False)
+
+    elif name == "lesmis":
+        print("lesmisにはラベルが存在しません")
+        label_list = None
 
     else:
         sys.exit("グラフ生成の引数の名前がおかしいです")
@@ -245,60 +296,45 @@ def get_label_karateclub(is_draw:bool):
     color_list = [0 if G.nodes[i]["club"] == "Mr. Hi" else 1 for i in G.nodes()]
     if is_draw:
         # 色別に描画
-        nx.draw_networkx(G, pos, node_color=color_list, cmap=plt.cm.RdYlBu)
+        nx.draw_networkx(G, pos, node_color=color_list, c=plt.cm.RdYlBu)
     plt.show()
     return color_list
 
-
 """
-ベクトルデータを描画
-Y : ベクトルデータ
-colorlist : ラベルリスト
+ベクトルデータをカラーリストごとに表示(plt.cm.tab20(i)で指定しているためクラスタ数は20個まで)
+Y : ベクトルデータ（2次元に限る）
+colorlist : カラーリスト(クラスタラベル)
+node_annotation : ノードにラベルを表示するかどうか(指定しない場合は数字が表示される)
+attention_nodelist : 特定のノードに注目する場合はそのノードのリストを指定する
 """
-def draw_embedded_vector(Y,colorlist):
-    if colorlist is None:
-        colorlist = get_label_karateclub(False)
+def draw_embedded_vector(Y,colorlist = [],node_annotation = None,attention_nodelist = []):
+    if len(colorlist) == 0:
+        colorlist = [0 for i in range(len(Y))]
 
-    fig, ax = plt.subplots()
-    for i in range(len(colorlist)):
-        ax.annotate(str(i), (Y[i, 0], Y[i, 1]))
-        if colorlist[i] == 0:
-            ax.scatter(Y[i, 0], Y[i, 1], c="r")
-            pass
-        elif colorlist[i] == 1:
-            ax.scatter(Y[i, 0], Y[i, 1], c="b")
-            pass
-        elif colorlist[i] == 2:
-            ax.scatter(Y[i, 0], Y[i, 1], c="y")
 
-        elif colorlist[i] == 3:
-            ax.scatter(Y[i, 0], Y[i, 1], c="g")
+    fig , ax = plt.subplots()
+    for i in range(len(Y)):
 
-        elif colorlist[i] == 4:
-            ax.scatter(Y[i, 0], Y[i, 1], c="c")
+        if node_annotation != None:
+            if node_annotation[i] in attention_nodelist:
+                ax.annotate(str(node_annotation[i]), (Y[i,0],Y[i,1]) ,color="red")
+            else:
+                ax.annotate(str(node_annotation[i]), (Y[i,0],Y[i,1]))
+        else:
+            ax.annotate(str(i), (Y[i,0],Y[i,1]))
+        
+        if node_annotation != None:
 
-        elif colorlist[i] == 5:
-            ax.scatter(Y[i, 0], Y[i, 1], c="m")
-
-        elif colorlist[i] ==6:
-            ax.scatter(Y[i, 0], Y[i, 1], c="coral")
-
-        elif colorlist[i] == 7:
-            ax.scatter(Y[i, 0], Y[i, 1], c="lightpink")
-
-        elif colorlist[i] == 8:
-            ax.scatter(Y[i, 0], Y[i, 1], c="skyblue")
-
-        elif colorlist[i] == 9:
-            ax.scatter(Y[i, 0], Y[i, 1], c="darkgray")
-
-        elif colorlist[i] == 10:
-            ax.scatter(Y[i, 0], Y[i, 1], c="goldenrod")
-
-        elif colorlist[i] == 11:
-            ax.scatter(Y[i, 0], Y[i, 1], c="lightgreen")
-
+            if node_annotation[i] in attention_nodelist:
+                ax.scatter(Y[i,0],Y[i,1],c="red")
+            else:
+                ax.scatter(Y[i,0],Y[i,1],c=[plt.cm.tab20(colorlist[i])])
+        else:
+            ax.scatter(Y[i,0],Y[i,1],c=[plt.cm.tab20(colorlist[i])])
     plt.show()
+
+
+        
 
 
 """
@@ -323,7 +359,7 @@ def build_deepwalk_corpus(INPUT,G, NUMBER_WALKS, WALK_LENGTH,
         rand.shuffle(nodes)
         for node in nodes:
             walks.append(G.random_walk(
-                INPUT,WALK_LENGTH, rand=rand, start=node))
+                WALK_LENGTH, rand=rand, start=node))
 
     return walks
 
@@ -358,7 +394,8 @@ def embed(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WIN
     walks = build_deepwalk_corpus(INPUT,G, NUMBER_WALKS=NUMBER_WALKS, WALK_LENGTH=WALK_LENGTH, rand=random.Random())
 
     model = Word2Vec(walks, size=REPRESENTATION_SIZE,window=WINDOW_SIZE, min_count=0, sg=1, hs=1, workers=WORKERS)
-    vec = model.wv.__getitem__([str(i) for i in range(len(G))])
+    #vec = model.wv.__getitem__([str(i) for i in range(len(G))])
+    vec = model.wv.__getitem__([str(i) for i in INPUT.nodes()])
     return vec,walks
 
 """
@@ -438,6 +475,64 @@ def exection(INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, 
     TRUE_LABEL          : 正解ラベル
     SHOW                : 埋め込み図を表示するかどうか
 """
+def embed_ward(TIME, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,SHOW):
+    
+        ARI_list = []
+        max_vec = None
+        min_vec = None
+        max_pred = None
+        min_pred = None
+        max_ari = -100
+        min_ari = 100
+        max_walks = None
+        min_walks = None
+        for i in range(TIME):
+            if SHOW:
+                print(f"------------------------{i+1}回目実行-----------------------------")
+    
+            #埋め込みを実施
+            vec ,walks= embed(INPUT,UNDIRECTED, NUMBER_WALKS, WALK_LENGTH,REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS)
+
+            # クラスタリングを実施
+            pred = AgglomerativeClustering(n_clusters=N_CLUSTER, linkage='ward').fit_predict(vec)
+
+            #ARI算出
+            ari = adjusted_rand_score(TRUE_LABEL, pred)
+            
+            if SHOW:
+                print(f"ari : {ari}")
+    
+            ARI_list.append(ari)
+    
+            if ari > max_ari:
+                max_ari = ari
+                max_vec = vec
+                max_pred = pred
+                max_walks = walks
+    
+            if min_ari > ari:
+                min_ari = ari
+                min_vec = vec
+                min_pred = pred
+                min_walks = walks
+        
+        if SHOW:
+            # 埋め込み結果を可視化
+            print("＝＝＝＝＝＝＝＝埋め込み結果（正解ラベルに基づいて色付け）＝＝＝＝＝＝＝＝＝")
+            draw_embedded_vector(max_vec, TRUE_LABEL)
+            # クラスタリング結果に基づいて可視化
+            print("＝＝＝＝＝＝＝＝＝＝＝＝＝＝クラスタリング結果＝＝＝＝＝＝＝＝＝＝＝＝＝＝")
+            draw_embedded_vector(max_vec, max_pred)
+        
+        print(f"最大ARI({get_index(ARI_list,max_ari,READ = True)}回目実行) : {max_ari}")
+        print(f"最小ARI({get_index(ARI_list,min_ari,READ = True)}回目実行) : {min_ari}")
+        print(f"平均ARI : {np.mean(ARI_list)}")
+        print(f"標準偏差：{stdev(ARI_list)}")
+
+        
+        return ARI_list, max_walks, min_walks, max_vec, min_vec, max_pred, min_pred
+
+
 def multi_exection(TIME, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENTATION_SIZE, WINDOW_SIZE, WORKERS, N_CLUSTER, METHOD, TRUE_LABEL,SHOW):
 
     ARI_list = []
@@ -490,7 +585,7 @@ def multi_exection(TIME, INPUT, UNDIRECTED, NUMBER_WALKS, WALK_LENGTH, REPRESENT
 
 
 """
-    一つの埋め込みからクラスタリングを100回実施し最も高いariの値を返す
+    一つの埋め込みからクラスタリングを100回実施し最も高いariの値を返す(クラスタリングの初期値依存性に対処)
     INPUT               : networkXのGraphインスタンス
     IS_DIRECTED         : 無向グラフ
     NUMBER_WALKS        : 1ノードあたりに実行するウォークの回数
